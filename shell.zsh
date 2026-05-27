@@ -1,5 +1,5 @@
 # agentic-config shell pieces
-# Source of truth: ~/src/agentic-config/shell.zsh
+# Source of truth: this repo's shell.zsh
 # Sourced from ~/.zshrc by install.sh
 
 # Prevent Ctrl-S / Ctrl-Q from freezing the terminal

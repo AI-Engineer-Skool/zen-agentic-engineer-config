@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # Idempotent installer for agentic-config:
 #  - symlink ~/.tmux.conf -> repo's tmux.conf (backing up any existing file)
-#  - append `source ~/src/agentic-config/shell.zsh` to ~/.zshrc (if missing)
+#  - append `source <repo>/shell.zsh` to ~/.zshrc (if missing)
 #  - merge statusLine + hooks into ~/.claude/settings.json (preserving existing keys)
 #  - symlink slash commands from .claude/commands/ into ~/.claude/commands/
 
 set -euo pipefail
 
-REPO="$HOME/src/agentic-config"
+# Resolve the repo root from this script's own location, so the installer works
+# no matter what folder the repo was cloned into.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 TMUX_SRC="$REPO/tmux.conf"
 TMUX_DST="$HOME/.tmux.conf"
 ZSHRC="$HOME/.zshrc"
 SHELL_SRC="$REPO/shell.zsh"
-SHELL_LINE="source \"\$HOME/src/agentic-config/shell.zsh\"  # agentic-config"
+SHELL_LINE="source \"$REPO/shell.zsh\"  # agentic-config"
 SETTINGS="$HOME/.claude/settings.json"
 
 ts() { date +%Y%m%d-%H%M%S; }
@@ -20,12 +22,10 @@ ts() { date +%Y%m%d-%H%M%S; }
 say()  { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!\033[0m %s\n' "$*"; }
 
-mkdir -p "$HOME/src"
-
 # --- tmux symlink ---
 if [ -L "$TMUX_DST" ] && [ "$(readlink "$TMUX_DST")" = "$TMUX_SRC" ]; then
   say "~/.tmux.conf already linked"
-elif [ -e "$TMUX_DST" ]; then
+elif [ -e "$TMUX_DST" ] || [ -L "$TMUX_DST" ]; then
   bak="${TMUX_DST}.bak.$(ts)"
   mv "$TMUX_DST" "$bak"
   warn "backed up existing ~/.tmux.conf -> $bak"
@@ -37,7 +37,7 @@ else
 fi
 
 # --- zshrc source line ---
-if [ -f "$ZSHRC" ] && grep -Fq 'agentic-config/shell.zsh' "$ZSHRC"; then
+if [ -f "$ZSHRC" ] && grep -Fq '# agentic-config' "$ZSHRC"; then
   say "~/.zshrc already sources shell.zsh"
 else
   {
@@ -84,7 +84,7 @@ if [ -d "$REPO/.claude/commands" ]; then
     dst="$HOME/.claude/commands/$name"
     if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
       say "~/.claude/commands/$name already linked"
-    elif [ -e "$dst" ]; then
+    elif [ -e "$dst" ] || [ -L "$dst" ]; then
       mv "$dst" "${dst}.bak.$(ts)"
       ln -s "$src" "$dst"
       warn "backed up existing ~/.claude/commands/$name; relinked"
@@ -93,6 +93,21 @@ if [ -d "$REPO/.claude/commands" ]; then
       say "symlinked ~/.claude/commands/$name -> $src"
     fi
   done
+fi
+
+# --- clip symlink (stable path referenced by tmux.conf) ---
+mkdir -p "$HOME/.claude/bin"
+CLIP_SRC="$REPO/bin/clip"
+CLIP_DST="$HOME/.claude/bin/clip"
+if [ -L "$CLIP_DST" ] && [ "$(readlink "$CLIP_DST")" = "$CLIP_SRC" ]; then
+  say "~/.claude/bin/clip already linked"
+elif [ -e "$CLIP_DST" ] || [ -L "$CLIP_DST" ]; then
+  mv "$CLIP_DST" "${CLIP_DST}.bak.$(ts)"
+  ln -s "$CLIP_SRC" "$CLIP_DST"
+  warn "backed up existing ~/.claude/bin/clip; relinked"
+else
+  ln -s "$CLIP_SRC" "$CLIP_DST"
+  say "symlinked ~/.claude/bin/clip -> $CLIP_SRC"
 fi
 
 cat <<EOF
