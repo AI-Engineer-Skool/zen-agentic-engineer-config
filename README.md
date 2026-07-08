@@ -1,4 +1,4 @@
-Explainer video: https://youtu.be/LxP6qv8ep2o
+Explainer video: https://youtu.be/ElYxdpYi4U0
 
 My personal simple agentic engineer workflow: tmux + zsh helpers + Claude Code status line + slash commands.
 Feel free to adapt to your OS or other AI tool with an AI Agent if you need to ;)
