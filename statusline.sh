@@ -22,20 +22,19 @@ compute_line() {
   # completes, then populate after every assistant turn.
   # NOTE: current_usage is an OBJECT (input_tokens, output_tokens, cache_*),
   # not a scalar — do NOT try to use it directly in arithmetic.
-  local pct_pre
+  local pct_pre ctx_present
+  ctx_present=$(printf '%s' "$input" | jq -r 'if has("context_window") then "yes" else "no" end')
   ctx_max=$(printf '%s'    "$input" | jq -r '.context_window.context_window_size // 200000')
   used=$(printf '%s'       "$input" | jq -r '(.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0)')
   pct_pre=$(printf '%s'    "$input" | jq -r '.context_window.used_percentage // empty')
 
-  # --- model slug: strip "Claude " prefix and any "(...)" suffix, lowercase, space->dash ---
+  # --- model name: strip "Claude " prefix and any "(...)" suffix, keep human-readable casing ---
   local slug
   slug=$(printf '%s' "$model_name" | awk '
     {
       n = $0
       sub(/[[:space:]]*\([^)]*\)[[:space:]]*$/, "", n)   # drop trailing (...)
       sub(/^[Cc]laude[[:space:]]+/, "", n)
-      n = tolower(n)
-      gsub(/[[:space:]]+/, "-", n)
       print n
     }')
 
@@ -88,18 +87,57 @@ compute_line() {
   used_s=$(fmt_k "$used")
   max_s=$(fmt_k "$ctx_max")
   local ctx_seg
-  ctx_seg=$(printf '[%s] %d%% (%s/%s)' "$bar" "$pct" "$used_s" "$max_s")
+  if [ "$ctx_present" = "no" ]; then
+    ctx_seg="ctx N/A"
+  else
+    ctx_seg=$(printf '[%s] %d%% (%s/%s)' "$bar" "$pct" "$used_s" "$max_s")
+  fi
+
+  # --- session segment: Claude Code's 5-hour rate-limit window ---
+  # rate_limits is only present for Claude.ai Pro/Max subscribers, and only
+  # after the first API response in the session. Absent for API-key/console
+  # users and older Claude Code versions — fall back to a truthful N/A.
+  local rl_pct rl_reset session_seg
+  rl_pct=$(printf '%s'   "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+  rl_reset=$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+  if [ -n "$rl_pct" ]; then
+    local rl_pct_i remaining now secs_left
+    rl_pct_i=$(awk -v p="$rl_pct" 'BEGIN { printf("%d", p + 0.5) }')
+    remaining="N/A"
+    if [ -n "$rl_reset" ]; then
+      now=$(date +%s)
+      secs_left=$(( rl_reset - now ))
+      [ "$secs_left" -lt 0 ] && secs_left=0
+      remaining=$(fmt_duration "$secs_left")
+    fi
+    session_seg=$(printf '5h %d%%  │  reset %s' "$rl_pct_i" "$remaining")
+  else
+    session_seg="5h N/A"
+  fi
 
   if [ -n "$git_seg" ]; then
-    printf '%s  │  %s  │  %s\n' "$slug" "$git_seg" "$ctx_seg"
+    printf '%s  │  %s  │  %s  │  %s\n' "$slug" "$git_seg" "$ctx_seg" "$session_seg"
   else
-    printf '%s  │  %s\n' "$slug" "$ctx_seg"
+    printf '%s  │  %s  │  %s\n' "$slug" "$ctx_seg" "$session_seg"
   fi
 }
 
 file_mtime() {
   # GNU stat first (Linux), then BSD stat (macOS).
   stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0
+}
+
+fmt_duration() {
+  local secs=$1 h m
+  h=$(( secs / 3600 ))
+  m=$(( (secs % 3600) / 60 ))
+  if [ "$h" -gt 0 ]; then
+    printf '%dh %dm' "$h" "$m"
+  elif [ "$m" -gt 0 ]; then
+    printf '%dm' "$m"
+  else
+    printf '<1m'
+  fi
 }
 
 # Stash latest stdin FIRST so the daemon always has current input, and so
