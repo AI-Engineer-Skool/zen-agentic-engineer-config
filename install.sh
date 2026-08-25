@@ -62,9 +62,9 @@ else
   fi
   tmp=$(mktemp)
   jq \
-    --arg sl "$REPO/statusline.sh" \
-    --arg start "$REPO/statusline-daemon.sh start" \
-    --arg stop  "$REPO/statusline-daemon.sh stop" \
+    --arg sl "\"$REPO/statusline.sh\"" \
+    --arg start "\"$REPO/statusline-daemon.sh\" start" \
+    --arg stop  "\"$REPO/statusline-daemon.sh\" stop" \
     '
     .statusLine = { "type": "command", "command": $sl, "padding": 0 }
     | .hooks = ((.hooks // {})
