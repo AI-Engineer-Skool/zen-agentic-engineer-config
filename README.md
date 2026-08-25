@@ -1,44 +1,131 @@
 # Zen Agentic Engineer
 
-A lightweight agentic engineering workflow for Claude Code, built around the original
+A lightweight agentic engineering workflow for Claude Code: tmux + zsh helpers + a
+Claude Code status line + slash commands.
+
+This repository builds on the original
 [**Zen Agentic Engineer**](https://github.com/AI-Engineer-Skool/zen-agentic-engineer-config)
-four-grid tmux setup — with a Claude Code usage/session monitor added on top of the
-existing status line. The four-grid workflow itself is unchanged; the monitor is this
+four-grid workflow and adds a **Claude Code usage/session monitor** on top of the
+existing status line. The four-grid workflow itself is unchanged — the monitor is this
 version's contribution.
 
-Explainer video: https://youtu.be/ElYxdpYi4U0
+Explainer video (original project): https://youtu.be/ElYxdpYi4U0
 
-My personal simple agentic engineer workflow: tmux + zsh helpers + Claude Code status line + slash commands.
-Feel free to adapt to your OS or other AI tool with an AI Agent if you need to ;)
+---
 
-Tested on Mac and Claude Code:
+## ✨ What's New
 
-```sh
-./install.sh && exec zsh
+This version adds a lightweight usage monitor to the existing status line. It surfaces:
+
+- the active Claude model
+- context-window usage and size
+- context percentage consumed
+- five-hour rate-limit usage
+- time remaining until that window resets
+
+> The original four-grid workflow remains unchanged.
+
+Here's what it looks like (illustrative example, not real account data):
+
+```text
+Sonnet 4.5  │  main  │  [████░░░░░░░░░░░░░░░░] 21% (42k/200k)  │  5h 45%  │  reset 2h 42m
 ```
 
-**Requirements:** [`jq`](https://jqlang.org/). This is a pre-existing dependency of the
-project, not something introduced by the usage monitor below — `install.sh` uses it to
-merge Claude Code settings, and `statusline.sh` uses it to parse the status-line JSON.
-`install.sh` resolves its own repository path dynamically, including when that path
-contains spaces.
+Reading left to right: active model, current git branch, context usage as a bar/percentage/
+token count, and the five-hour rate-limit window's usage and reset countdown.
 
-## What's New
+---
 
-This version adds a lightweight **Claude Code usage/session monitor** to the existing
-status line, without changing the four-grid workflow in any way. It surfaces:
+## Original vs. enhanced
 
-- the active model
-- context usage and context window size
-- five-hour rate-limit usage
-- time remaining until that rate-limit window resets
+```text
+Original:                              Enhanced (this version):
 
-Everything under "Claude Code Usage Monitor" below is new; everything above it is the
-original project.
+Zen Agentic Engineer                   Zen Agentic Engineer
+        │                                      │
+        └── Four-grid Claude Code workflow     ├── Four-grid Claude Code workflow
+                                                │       └── unchanged
+                                                │
+                                                └── Claude Code usage monitor
+                                                        ├── Model
+                                                        ├── Context
+                                                        ├── Five-hour usage
+                                                        └── Reset countdown
+```
 
-## The four-grid workflow (unchanged)
+The enhancement lives entirely in the status line — it does not add, remove, or resize
+any tmux pane.
 
-Running `t` (or its alias `cwork`) in any project directory opens a fresh tmux session
+---
+
+## 🧠 Why this exists
+
+Long agentic coding sessions can consume a meaningful chunk of context and rate-limit
+capacity, but there's often no obvious way to see that while you're working. This adds
+that visibility by surfacing Claude Code's own session/context metadata directly in the
+terminal status line you're already looking at — nothing new to open or check.
+
+---
+
+## 📊 What it shows
+
+| Indicator | What it means |
+|---|---|
+| Model | Active Claude model |
+| Context | Tokens used / maximum context window |
+| Context % | Percentage of context currently consumed |
+| 5h | Current five-hour rate-limit window |
+| Usage % | Percentage used in that window |
+| Reset | Time remaining until the current window resets |
+
+---
+
+## 🔬 How it works
+
+```text
+Claude Code
+   │  status-line JSON
+   ▼
+statusline.sh
+   │
+   ├── model.display_name
+   ├── context_window
+   └── rate_limits.five_hour
+           ├── used_percentage
+           └── resets_at
+   │
+   ▼
+Terminal status line
+```
+
+The monitor reads only the JSON that Claude Code already sends to its configured
+`statusLine` command on every update. There's no separate API call, no scraping, and no
+new data source involved.
+
+---
+
+## ⚠️ What "5h" means
+
+> `5h` refers to the five-hour rate-limit window exposed by Claude Code. It is not a
+> direct representation of your subscription quota, and not a guaranteed count of
+> messages remaining.
+
+This field is only populated for Claude.ai Pro/Max subscribers, and only after the first
+API response of a session — it's absent for API-key/console-billed usage and for older
+Claude Code versions. When it's unavailable, the status line gracefully shows:
+
+```text
+5h N/A
+```
+
+rather than guessing a number. The same applies to the reset countdown: if usage is known
+but the reset timestamp isn't, it shows `reset N/A` instead of fabricating a duration.
+
+---
+
+## 🖥️ Four-grid workflow (unchanged)
+
+Running `t` (or its alias `cwork`) in a project directory opens a fresh tmux session
 split into four panes, each running its own Claude Code instance:
 
 | Pane | Effort level |
@@ -49,80 +136,99 @@ split into four panes, each running its own Claude Code instance:
 | Bottom-right | `CLAUDE_CODE_EFFORT_LEVEL=low` |
 
 `tmux.conf` adds mouse support, drag/double/triple-click-to-copy (via `bin/clip`), and
-pane borders showing index + running command. None of this — `tmux.conf`, `shell.zsh`,
-pane layout, keybindings — changed in this version.
+pane borders showing index + running command.
 
-## Claude Code Usage Monitor
+This version does not touch any of it: no pane added, no pane removed, tmux configuration
+untouched, existing keybindings unchanged, existing Claude Code launch behavior intact.
 
-The status line (`statusline.sh`) additionally shows Claude Code's own session/rate-limit
-data, on top of the existing model + git + context segments.
+---
 
-Example output (illustrative — not real account data):
+## 🚀 Installation
+
+**Prerequisite:** [`jq`](https://jqlang.org/) — required by `install.sh` (to merge Claude
+Code settings) and by `statusline.sh` (to parse the status-line JSON). This is a
+pre-existing requirement of the project, not something the usage monitor introduced.
+
+```sh
+./install.sh && exec zsh
+```
+
+`install.sh` is idempotent and configures Claude Code's `statusLine` (plus the
+`SessionStart`/`Stop` hooks that keep it refreshed) to point at this repository's
+scripts, symlinks the tmux config and slash commands, and resolves its own path
+dynamically — including when that path contains spaces.
+
+Tested on Mac and Claude Code.
+
+---
+
+## 🧪 Testing
+
+The usage monitor was tested against:
+
+- complete status-line data
+- missing `rate_limits`
+- missing `context_window`
+- missing `resets_at`
+- an already-expired reset timestamp
+- dynamic model-name formatting across different models
+- real `jq` parsing (not just mocked input)
+- a real interactive Claude Code session, where the live status line was observed
+  rendering actual model, context, and rate-limit data
+
+The four-grid tmux workflow was not modified by this change and was not re-tested as
+part of it.
+
+---
+
+## 🛡️ Safety / privacy
+
+- No Claude API credentials are required.
+- No browser cookies or session data are read.
+- No authentication tokens are scraped.
+- No external usage API is called.
+- The monitor only reads metadata Claude Code already provides to its own `statusLine`
+  mechanism.
+
+---
+
+## 📁 Project structure
 
 ```text
-Sonnet 4.5  │  main  │  [████░░░░░░░░░░░░░░░░] 21% (42k/200k)  │  5h 45%  │  reset 2h 42m
+.
+├── .claude/
+│   └── commands/
+│       └── smell.md
+├── bin/
+│   └── clip
+├── install.sh
+├── shell.zsh
+├── statusline.sh
+├── statusline-daemon.sh
+├── tmux.conf
+└── README.md
 ```
 
-| Indicator | Meaning | Source |
-|---|---|---|
-| `Sonnet 4.5` | Active Claude model | `model.display_name` |
-| `main` | Current git branch (pre-existing, unchanged) | local git |
-| `42k/200k` | Current context usage / maximum context window | `context_window.total_input_tokens` + `total_output_tokens`, `context_window.context_window_size` |
-| `21%` | Percentage of context consumed | `context_window.used_percentage` |
-| `5h` | The current five-hour rate-limit window | `rate_limits.five_hour` |
-| `45%` | Percentage used within that window | `rate_limits.five_hour.used_percentage` |
-| `reset 2h 42m` | Time remaining until that window resets | `rate_limits.five_hour.resets_at` |
+---
 
-### What "5h" actually means
+## 🤝 Original project / attribution
 
-Claude Code's statusLine JSON does **not** expose your subscription's message/token quota.
-It exposes usage against a rolling **five-hour rate-limit window** (`rate_limits.five_hour`)
-and a **seven-day window** (`rate_limits.seven_day`, not shown here). `5h` names that
-window — it is not a literal message count, and it is not your subscription quota. The
-reset countdown comes from `rate_limits.five_hour.resets_at`, an authoritative Unix
-timestamp from Claude Code — never from how long the local process has been running.
+This repository builds on
+[**AI-Engineer-Skool/zen-agentic-engineer-config**](https://github.com/AI-Engineer-Skool/zen-agentic-engineer-config).
+The four-grid tmux workflow, shell helpers, and slash commands are that project's work.
 
-### Limitations / fallback behavior
+## 💡 This version's contribution
 
-- `rate_limits` is only populated for Claude.ai Pro/Max subscribers, and only after the
-  first API response of the session. It's absent for API-key/console-billed usage and for
-  older Claude Code versions — when absent, the status line shows `5h N/A` rather than a
-  fabricated number.
-- If usage is known but the reset timestamp isn't, it shows `5h 45%  │  reset N/A` rather
-  than guessing a countdown.
-- If `context_window` itself is missing (older Claude Code versions), the status line
-  shows `ctx N/A` instead of a misleading `0/200k`.
-- The reset countdown can't go negative — it clamps to `0`/`<1m` once the window has
-  already elapsed by render time.
+> A lightweight Claude Code usage/session monitor integrated into the existing status
+> line, without modifying the original four-grid workflow.
 
-### Refresh behavior
+---
 
-No new daemon or polling loop was added. The existing `statusline-daemon.sh` already
-recomputes the status line from the last-seen input every ~2 seconds; the reset countdown
-is computed from `resets_at` at render time, so it ticks down live using that existing
-2-second cadence with no extra processes or network calls.
+## 🗺️ Roadmap
 
-### Architecture
+Possible future directions (not committed, not scheduled):
 
-```
-Original:                            Enhanced (this version):
-
-Four-grid tmux workflow              Four-grid tmux workflow    (unchanged)
-        +                                     +
-Claude Code status line              Claude Code status line
-(model / git / context)              (model / git / context / 5h usage / reset)
-```
-
-```
-Claude Code
-   │ statusLine JSON (stdin)
-   ▼
-statusline.sh (unchanged: model / git / context logic)
-   │
-   └── + rate_limits.five_hour → "5h <used%>  │  reset <time to resets_at>"
-   ▼
-existing status line (bottom of Claude Code)
-```
-
-The usage monitor does not add another tmux pane and does not modify `tmux.conf`,
-`shell.zsh`, or the four-grid layout in any way.
+- configurable status-line display
+- additional Claude Code metrics as they're officially exposed
+- improved visual indicators
+- broader platform testing
