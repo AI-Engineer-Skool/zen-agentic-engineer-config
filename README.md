@@ -135,6 +135,13 @@ split into four panes, each running its own Claude Code instance:
 | Bottom-left | `CLAUDE_CODE_EFFORT_LEVEL=medium` |
 | Bottom-right | `CLAUDE_CODE_EFFORT_LEVEL=low` |
 
+![Four-grid Claude Code workspace, each pane showing its effort level and status line](docs/four-grid-workflow.png)
+
+The four panes above are freshly started (no prompt sent yet), which is why each status
+line reads `0% (0/1000k)` and `5h N/A` — those are the correct fallback values before the
+first API response of a session, not a bug. See [What's New](#-whats-new) above for an
+example of the status line once usage data is populated.
+
 `tmux.conf` adds mouse support, drag/double/triple-click-to-copy (via `bin/clip`), and
 pane borders showing index + running command.
 
